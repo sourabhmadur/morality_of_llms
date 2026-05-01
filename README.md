@@ -174,7 +174,7 @@ If you use this benchmark or pipeline, please cite:
   title  = {How Does Thinking Change the Morality of LLMs?
             A Controlled Instant-vs-Thinking Comparison Across
             Five Frontier Reasoning-Trained Language Models},
-  author = {Madur, Sourabh},
+  author = {Madur, Sai Sourabh},
   year   = {2026}
 }
 ```
