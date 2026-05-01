@@ -1,0 +1,122 @@
+[
+  {
+    "name": "claude-sonnet-4-6 [instant]",
+    "build_ok": true,
+    "call_ok": true,
+    "parse_ok": true,
+    "judgment_binary": 1,
+    "framework": "utilitarian",
+    "confidence": 3,
+    "latency_s": 5.8,
+    "raw_len": 919,
+    "error": null
+  },
+  {
+    "name": "claude-sonnet-4-6 [light]",
+    "build_ok": true,
+    "call_ok": true,
+    "parse_ok": true,
+    "judgment_binary": 1,
+    "framework": "utilitarian",
+    "confidence": 4,
+    "latency_s": 5.5,
+    "raw_len": 632,
+    "error": null
+  },
+  {
+    "name": "gpt-5.5 [instant]",
+    "build_ok": true,
+    "call_ok": true,
+    "parse_ok": true,
+    "judgment_binary": 1,
+    "framework": "utilitarian",
+    "confidence": 4,
+    "latency_s": 7.48,
+    "raw_len": 573,
+    "error": null
+  },
+  {
+    "name": "gpt-5.5 [light]",
+    "build_ok": true,
+    "call_ok": true,
+    "parse_ok": true,
+    "judgment_binary": 1,
+    "framework": "utilitarian",
+    "confidence": 4,
+    "latency_s": 6.23,
+    "raw_len": 540,
+    "error": null
+  },
+  {
+    "name": "gemini-3-flash [instant]",
+    "build_ok": true,
+    "call_ok": true,
+    "parse_ok": true,
+    "judgment_binary": 1,
+    "framework": "utilitarian",
+    "confidence": 5,
+    "latency_s": 3.3,
+    "raw_len": 478,
+    "error": null
+  },
+  {
+    "name": "gemini-3-flash [light]",
+    "build_ok": true,
+    "call_ok": true,
+    "parse_ok": true,
+    "judgment_binary": 1,
+    "framework": "utilitarian",
+    "confidence": 5,
+    "latency_s": 7.23,
+    "raw_len": 561,
+    "error": null
+  },
+  {
+    "name": "DeepSeek-V3.1 [instant]",
+    "build_ok": true,
+    "call_ok": true,
+    "parse_ok": true,
+    "judgment_binary": 1,
+    "framework": "utilitarian",
+    "confidence": 5,
+    "latency_s": 4.5,
+    "raw_len": 450,
+    "error": null
+  },
+  {
+    "name": "DeepSeek-V3.1 [light]",
+    "build_ok": true,
+    "call_ok": true,
+    "parse_ok": true,
+    "judgment_binary": 1,
+    "framework": "utilitarian",
+    "confidence": 5,
+    "latency_s": 58.27,
+    "raw_len": 427,
+    "error": null
+  },
+  {
+    "name": "Qwen3.5-397B [instant]",
+    "build_ok": true,
+    "call_ok": true,
+    "parse_ok": true,
+    "judgment_binary": 1,
+    "framework": "utilitarian",
+    "confidence": 5,
+    "latency_s": 4.01,
+    "raw_len": 512,
+    "error": null
+  },
+  {
+    "name": "Qwen3.5-397B [light]",
+    "build_ok": true,
+    "call_ok": true,
+    "parse_ok": true,
+    "judgment_binary": 1,
+    "framework": "utilitarian",
+    "confidence": 5,
+    "latency_s": 13.82,
+    "raw_len": 504,
+    "error": null
+  }
+]

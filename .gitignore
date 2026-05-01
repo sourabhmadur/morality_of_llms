@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Secrets
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Claude Code internals
+.claude/
+
+# LaTeX build artifacts
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.toc
+paper/*.synctex.gz
+paper/*.fls
+paper/*.fdb_latexmk
+
+# Run logs (keep results/raw/ committed since they're the experimental data)
+results/run.log
+results/run2.log
+results/run3.log
+results/topup.log
+results/turbo.log
+results/turbo_qwen.log
+results/raw_test/
+results/raw_smoketest/
+
+# Backup files
+*.bak
+
+# Build artifacts
+arxiv_submission/
+arxiv_submission.tar.gz
+paper/main.pdf
+
+# Personal notes (not part of the public release)
+VENUES.md

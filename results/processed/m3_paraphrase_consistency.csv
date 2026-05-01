@@ -1,0 +1,11 @@
+config_key,consistent,total,rate,ci_lo,ci_hi
+claude_instant,10,10,1.0,1.0,1.0
+claude_light,9,10,0.9,0.7,1.0
+gpt55_instant,9,10,0.9,0.7,1.0
+gpt55_light,9,10,0.9,0.7,1.0
+gemini_instant,9,10,0.9,0.7,1.0
+gemini_light,9,10,0.9,0.7,1.0
+deepseek_instant,10,10,1.0,1.0,1.0
+deepseek_light,9,10,0.9,0.7,1.0
+qwen35_instant,10,10,1.0,1.0,1.0
+qwen35_light,10,10,1.0,1.0,1.0

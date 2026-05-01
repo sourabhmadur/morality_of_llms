@@ -1,0 +1,356 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{titlesec}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf}
+\hypersetup{colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black}
+
+\title{\textbf{How Does Thinking Change the Morality of LLMs?}\\[2pt]
+\large A controlled instant-vs-thinking comparison on 100 moral-judgment scenarios across Claude Sonnet~4.6, GPT-5.5, Gemini~3~Flash, DeepSeek-V3.1, and Qwen3.5-397B}
+
+\author{Sourabh Madur\\\texttt{sourabhmadur@gmail.com}}
+
+\date{May 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+We benchmark five frontier reasoning-trained LLMs (Claude Sonnet~4.6, GPT-5.5, Gemini~3~Flash, DeepSeek-V3.1, Qwen3.5-397B) on 100 moral-judgment scenarios in both \emph{instant} and \emph{lightweight thinking} modes, with $N=3$ samples per (model, mode, scenario) for $2{,}963$ successful structured-JSON responses. We adopt each provider's canonical lightweight reasoning setting per their published API documentation; we do not attempt to equate ``thinking effort'' across providers (see \S\ref{sec:method-models} and Table~\ref{tab:models}).
+
+\textbf{Headline finding:} aggregate cross-model agreement on binary moral verdicts is high in both modes (Krippendorff's $\alpha = 0.78$ instant, $0.79$ thinking). Stratifying \emph{post hoc} by case difficulty, the 79 scenarios where all five models concur in instant mode (``easy'') reach $\alpha = 1.00$ \emph{by construction} --- this is mechanical, not a finding. The remaining 21 ``hard'' scenarios (footbridge variants, harmless-taboo cases, contested contemporary dilemmas) show wide cross-model disagreement: a mean of $5.4$ pairwise agreements out of $10$ in instant mode, rising to $6.7$ with reasoning enabled. We report this as a single descriptive comparison; with multiple comparisons across the M-suite uncorrected, the per-scenario Wilcoxon $p = 0.026$ should be read as suggestive, and the paired-bootstrap 95\% CI on $\Delta\alpha = 0.15$ of $[-0.05, 0.36]$ includes zero. We additionally report (\S\ref{sec:findings}) two secondary findings: \emph{(i)}~suggestive but not individually significant shifts in self-labeled ethical framework whose directions vary across providers (DeepSeek shifts $\sim$5\,pp toward utilitarianism; GPT-5.5 rises on both axes, with utilitarian up $\sim$5\,pp and deontological up $\sim$2\,pp; others stable; per-provider CIs include zero, so the pattern is suggestive only); and \emph{(ii)}~reasoning reduces demographic-judgment inconsistency in three of five models and does not increase it for any of them. We release the benchmark, runner, and $2{,}963$ raw responses (with reasoning traces) for follow-up.
+\end{abstract}
+
+\section{Introduction}
+Reasoning-trained large language models (LLMs) are increasingly deployed in settings that demand moral judgment --- triage, policy summarization, content moderation, tutoring~\citep{hendrycks2021ethics,emelin2021moralstories} --- and each frontier provider now exposes a ``thinking mode'' that allocates extra inference-time computation to reasoning. Prior work has established that LLMs encode ethical preferences that vary across models and training methodology~\citep{abdulhai2023moral,scherrer2023moral,jiang2021delphi}. We ask a sharper question: \emph{does enabling explicit reasoning change those preferences within a single model checkpoint, and is ``thinking mode'' a comparable construct across providers?}
+
+We contribute:
+
+\begin{enumerate}[noitemsep,leftmargin=*]
+    \item A 100-scenario, five-category moral-reasoning benchmark covering trolley problems, Moral Foundations Theory, paraphrase-consistency pairs, demographic-sensitivity triplets, and contemporary applied dilemmas.
+    \item A controlled instant-vs-thinking experimental design that, for all five model families, holds model weights constant and only varies the provider's canonical reasoning-mode parameter --- which removes capability confounds from the comparison, with the partial-isolation caveats discussed in \S\ref{sec:method-models}.
+    \item Two findings about self-labeled ethical framework under reasoning. \emph{(a)} Small ($\leq 5$\,pp) shifts in the self-label are heterogeneous across providers (DeepSeek toward utilitarianism; GPT-5.5 rises on both top frameworks; Claude, Gemini, and Qwen3.5 stable); per-provider effects are within bootstrap CI overlap at $N=3$. \emph{(b)} The self-label matches the reasoning trace $\geq 90\%$ of the time for DeepSeek/Gemini/Qwen3.5 but only $24\%$ for Claude and $58\%$ for GPT-5.5 (Table~\ref{tab:trace-concordance}); the latter two should be read as shifts in self-reporting behavior, not in operative reasoning.
+    \item A reproducible open-source pipeline (resumable runner, analysis code, and all raw outputs) released alongside the paper.
+\end{enumerate}
+
+\paragraph{Hypotheses.} We stated five working hypotheses before running the experiment (not formally pre-registered; we report verdicts on each in \S\ref{sec:hyp-eval}):
+\label{sec:hypotheses}
+\begin{description}[noitemsep,leftmargin=*]
+    \item[H1] \emph{Framework bias.} Different model families default to different ethical frameworks.
+    \item[H2] \emph{Paraphrase brittleness.} Surface-form variations in semantically-equivalent scenarios produce non-trivial verdict flips within a single model.
+    \item[H3] \emph{Demographic sensitivity.} Identical scenarios with varied demographics produce different judgments.
+    \item[H4] \emph{Hard-case divergence.} Cross-model agreement is high on easy cases (classic switch trolley) and collapses on hard cases (footbridge, harmless taboos).
+    \item[H5] \emph{Reasoning effect.} Thinking mode systematically changes moral judgments relative to instant mode within the same model.
+\end{description}
+
+\section{Related Work}
+
+\paragraph{Moral reasoning benchmarks for LLMs.}
+The ETHICS dataset~\citep{hendrycks2021ethics} introduced a five-category benchmark with crowdsourced labels.  Moral~Stories~\citep{emelin2021moralstories} and Social-Chem-101~\citep{forbes2020socialchem} expand to narrative form.  Delphi~\citep{jiang2021delphi} and ClarifyDelphi~\citep{pyatkin2023clarifydelphi} model norms directly.  None of these works isolates the effect of reasoning mode within a single checkpoint.
+
+\paragraph{Cross-model moral evaluation.}
+\citet{scherrer2023moral} and \citet{abdulhai2023moral} survey moral preferences in pre-reasoning LLMs. \citet{awad2018moral}'s Moral Machine experiment crowdsourced human judgments on autonomous-vehicle dilemmas across cultures, providing a reference point for cross-cultural moral variance. Our work extends model-side study to reasoning-trained checkpoints from five labs (US-closed and Chinese-open) released through April 2026.
+
+\paragraph{Alignment methodology and moral preference.}
+Models in our cohort were trained with materially different alignment regimes: Constitutional AI~\citep{bai2022constitutional} and RLHF for Claude, RLHF and reasoning-supervision for GPT-5.5, RLAIF for Gemini, RL-from-verifiable-rewards approaches for DeepSeek-V3.1 and DeepSeek-R1~\citep{guo2025deepseekr1}, and SFT plus RL for Qwen3.5. Differences in moral preferences across these models plausibly reflect these alignment-method differences --- a hypothesis we cannot causally test here but which our results help to motivate. We do not claim moral preferences in any specific model are caused by any specific alignment regime; the inference goes the other way (the diversity we observe is consistent with alignment-method diversity).
+
+\paragraph{Reasoning effects in LLMs.}
+Chain-of-thought prompting~\citep{wei2022cot} and the rise of reasoning-trained models (o1, DeepSeek-R1, Claude with extended thinking) have been studied for math, code, and factual accuracy. The effect of reasoning on \emph{moral} verdicts has not been systematically characterized in this generation of models.
+
+\section{Methodology}
+
+\subsection{Models and Configurations}
+\label{sec:method-models}
+We evaluate five frontier model families (Table~\ref{tab:models}). For each family we hold the model checkpoint fixed and toggle reasoning via the provider's canonical reasoning parameter --- a single-checkpoint comparison: the same model weights are used in both modes, only the API parameter that engages or disables reasoning differs. The precise semantics of ``lightweight thinking'' vary by provider --- Anthropic exposes a \texttt{thinking.budget\_tokens} cap, OpenAI exposes \texttt{reasoning.effort} tiers, Google exposes \texttt{thinking\_level} tiers, and Together AI exposes a binary \texttt{reasoning.enabled} flag --- and the actual computation each setting triggers is not fully comparable across providers. We adopt each provider's lightest non-zero reasoning setting per their published API documentation and refer the reader there for the operational definition of each setting; in this paper we take ``thinking mode'' to mean ``the API setting that engages each provider's documented lightweight reasoning,'' without claiming that the underlying computation is matched in volume across providers. For OpenAI specifically, \texttt{reasoning.effort=none} and \texttt{reasoning.effort=medium} engage the model's reasoning sub-system to qualitatively different degrees; we treat this as a ``single-checkpoint'' comparison only in the sense that no model-weight change occurs between the two conditions.
+
+The selected Google checkpoint is \texttt{gemini-3-flash-preview} rather than the flagship Gemini~3.1~Pro Preview because the latter does not allow \texttt{thinking\_level=minimal} (its API requires reasoning to be enabled), preventing a single-checkpoint instant comparison.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lll}
+\toprule
+Lab & Model checkpoint & Instant $\to$ Thinking toggle \\
+\midrule
+Anthropic & \texttt{claude-sonnet-4-6} & \emph{omit thinking param} $\to$ \texttt{thinking=\{enabled, budget\_tokens=1024\}} \\
+OpenAI & \texttt{gpt-5.5} & \texttt{reasoning.effort=none} $\to$ \texttt{medium}, \texttt{summary=detailed} \\
+Google DeepMind & \texttt{gemini-3-flash-preview} & \texttt{thinking\_level=minimal} $\to$ \texttt{low}, \texttt{include\_thoughts=True} \\
+DeepSeek & \texttt{deepseek-ai/DeepSeek-V3.1} & \texttt{reasoning.enabled=False} $\to$ \texttt{True} (Together AI) \\
+Alibaba & \texttt{Qwen/Qwen3.5-397B-A17B} & \texttt{reasoning.enabled=False} $\to$ \texttt{True} (Together AI) \\
+\bottomrule
+\end{tabular}
+\caption{The five model families and the canonical API parameters that toggle each into \emph{instant} or \emph{thinking} mode. The same model weights are used in both modes for each family. Readers should consult each provider's published API documentation for the operational meaning of each reasoning parameter.}
+\label{tab:models}
+\end{table}
+
+\paragraph{Reasoning-token spend is highly asymmetric across providers.} As a quantitative check on the ``not fully comparable'' caveat above, Table~\ref{tab:reasoning-tokens} reports the mean number of provider-billed reasoning tokens per call in thinking mode. The spread is roughly two orders of magnitude --- Claude Sonnet 4.6 averages 33 tokens, GPT-5.5 84, Gemini 3 Flash 532, DeepSeek-V3.1 912, and Qwen3.5-397B 2{,}639. Cross-family thinking-mode comparisons (e.g.\ Fig.~\ref{fig:m7}) therefore conflate the effect of ``reasoning is enabled'' with the effect of ``how much reasoning the provider spent on this call''; per-family within-checkpoint comparisons are not affected.
+
+\begin{table}[t]
+\centering
+\small
+\input{tables/tab_reasoning_tokens}
+\caption{Mean number of reasoning tokens billed per thinking-mode call, by family. The two-order-of-magnitude spread is the operational reason ``lightweight thinking'' is not a comparable construct across providers.}
+\label{tab:reasoning-tokens}
+\end{table}
+
+\subsection{Scenario Battery}
+\paragraph{Provenance.} The 100 scenarios were authored by the experimenter, drawing on canonical moral-philosophy literature (Foot, Thomson, Singer, Kohlberg) for the trolley-problem and Moral Foundations Theory categories, on Haidt's published taxonomy~\citep{haidt2007moral} for the moral-foundations subcategorization, and on contemporary policy debates (peer-reviewed and trade-press sources) for the contemporary-dilemmas category. The paraphrase-consistency and demographic-sensitivity scenarios were constructed by parametric variation of base scenarios. The benchmark was \emph{not} validated by an independent panel of ethicists, and we do not report inter-annotator agreement on a ground-truth label for each scenario --- our analyses depend only on cross-model and within-model agreement on the binary verdict, not on any external ``correct'' label. We position this work as a controlled probe of the reasoning-vs-instant axis, not as a benchmark contribution; expanding to externally-validated and human-labelled scenarios is left to follow-up work.
+
+The benchmark contains 100 scenarios across five categories (full counts and IDs in the appendix):
+\begin{itemize}[noitemsep,leftmargin=*]
+    \item \textbf{Trolley problems} (15): switch, footbridge, loop, transplant, double-effect, ticking-bomb, autonomous vehicle, etc.
+    \item \textbf{Moral Foundations Theory} (25): five each across Care/Harm, Fairness/Cheating, Loyalty/Betrayal, Authority/Subversion, Sanctity/Degradation~\citep{haidt2007moral}.
+    \item \textbf{Paraphrase consistency} (20): 10 base scenarios, each presented in two semantically-equivalent surface forms.
+    \item \textbf{Demographic sensitivity} (30): 10 base scenarios, each varied along three demographic axes (nationality, race, gender, religion, age, criminal history, occupation, socioeconomic status).
+    \item \textbf{Contemporary dilemmas} (10): AI safety race, predictive policing, CRISPR germline editing, pandemic triage, geoengineering, encryption backdoors, autonomous weapons, etc.
+\end{itemize}
+
+\subsection{Prompt and Elicitation}
+All 10 configurations receive the same prompt: a structured-JSON elicitation that asks for (1) a verbal verdict, (2) a binary judgment, (3) a 1--5 confidence rating, (4) a self-labeled ethical framework drawn from a fixed set of six options (utilitarian, deontological, virtue ethics, care ethics, contractualist, other), (5) 2--3 sentences of reasoning, and (6) a one-sentence statement of the principle applied. The full prompt template is reproduced in Appendix~A. We sample three responses per configuration per scenario, yielding 3{,}000 attempted API calls of which 2{,}963 returned a parseable JSON object (37 calls --- $1.2\%$ --- failed with provider-side errors or returned malformed JSON; these are excluded from analysis). \emph{Temperature settings.} Gemini and Together (DeepSeek, Qwen3.5) are called with \texttt{temperature=0}; Anthropic and OpenAI are called at each provider's default (Anthropic's extended-thinking API forbids \texttt{temperature=0}, and OpenAI's Responses API uses a non-zero default). In practice we observed only modest within-cell variance even where \texttt{temperature=0} should be deterministic --- the binary verdict varies across the 3 samples on $0$--$7$ of the 100 scenarios per config, and the self-labeled framework varies on $4$--$22$ --- so the $N=3$ samples function primarily as a robustness check on individual-call noise rather than a study of stochastic-sampling variance.
+
+\subsection{Metrics}
+\begin{description}[noitemsep,leftmargin=*]
+    \item[M1] Framework distribution per configuration (Figure~\ref{fig:m1}).
+    \item[M2] Cross-model agreement: Krippendorff's $\alpha$ over the binary verdict, plus pairwise Cohen's $\kappa$ (Figure~\ref{fig:m2}).
+    \item[M3] Paraphrase consistency rate: fraction of paraphrase pairs receiving the same binary verdict (Figure~\ref{fig:m3}).
+    \item[M4] Demographic-judgment inconsistency coefficient: fraction of triplets where at least one variant disagrees on the binary verdict (Figure~\ref{fig:m4}).
+    \item[M7] Effect of thinking: per-family verdict-flip rate and framework-shift rate (Figure~\ref{fig:m7}). Numbering preserves continuity with the analysis pipeline (which additionally computes per-scenario entropy (M5) and confidence calibration (M6) as released CSVs).
+\end{description}
+
+\section{Results}
+
+\subsection{Framework Distribution (M1)}
+Across all five model families, two ethical frameworks --- \emph{utilitarian} and \emph{deontological} --- account for $\geq 75\%$ of self-labeled responses; the other four options (virtue ethics, care ethics, contractualist, other) appear only as minority labels (Figure~\ref{fig:m1}). Gemini~3~Flash leans most utilitarian ($\sim$59\%) in both modes; GPT-5.5 is the most deontology-leaning ($\sim$41-45\% deontological in both modes). Thinking mode shifts the proportions, but the direction of shift varies across models --- detailed in \S\ref{sec:thinking-effect}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.95\linewidth]{figures/fig1_framework_distribution.pdf}
+\caption{Self-labeled ethical framework by configuration. All five families default to utilitarian or deontological, with notable per-model differences. Thinking mode shifts the distribution \emph{in different directions} across families (see \S\ref{sec:thinking-effect}).}
+\label{fig:m1}
+\end{figure}
+
+\subsection{Cross-Model Agreement (M2)}
+We measure inter-model agreement on the binary verdict using Krippendorff's $\alpha$ (treating each model family as a rater) and pairwise Cohen's $\kappa$, with 95\% bootstrap confidence intervals from $B=1000$ resamples over scenarios. In instant mode, $\alpha = 0.781$ (Table~\ref{tab:alpha}); with reasoning enabled, $\alpha = 0.789$. The two intervals overlap substantially, indicating that aggregate cross-model agreement is statistically indistinguishable across modes. The pairwise heatmap (Figure~\ref{fig:m2}) shows agreement well above $0.5$ for almost every model pair in both modes; closed-source US labs (Claude, GPT-5.5) maintain particularly high mutual agreement ($\kappa \approx 0.84$ in both modes). However, this aggregate hides a sharp easy-vs-hard split, presented in \S\ref{sec:findings}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.48\linewidth]{figures/fig2_kappa_instant.pdf}\hfill
+\includegraphics[width=0.48\linewidth]{figures/fig2_kappa_light.pdf}
+\caption{Pairwise Cohen's $\kappa$ on binary judgments. Left: instant mode. Right: thinking mode. Krippendorff's $\alpha$ summary in Table~\ref{tab:alpha}.}
+\label{fig:m2}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\input{tables/tab_alpha}
+\caption{Krippendorff's $\alpha$ over the binary verdict in instant vs.\ thinking modes.}
+\label{tab:alpha}
+\end{table}
+
+\subsection{Paraphrase Consistency (M3)}
+For each of the 10 paraphrase-pair scenarios, we ask whether each (model, mode) configuration returns the same binary verdict for both surface forms. All five families are highly robust to paraphrase: every cell scores between 0.90 and 1.00 (Figure~\ref{fig:m3}). Qwen3.5-397B is the only family at 10/10 in both modes; Claude Sonnet 4.6 and DeepSeek-V3.1 are 10/10 in instant mode but slip to 9/10 under thinking; GPT-5.5 and Gemini~3~Flash are at 9/10 in both modes. The single 9/10 cell for each non-Qwen family corresponds to one paraphrase pair on which the binary verdict flipped across the two surface forms; with only 10 pairs, these are wide-CI counts rather than precisely-estimated rates (each cell's 95\% CI spans roughly $\pm 0.20$, see Figure~\ref{fig:m3}).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/fig3_paraphrase_consistency.pdf}
+\caption{Paraphrase consistency rate per (model, mode). Higher is more semantically robust.}
+\label{fig:m3}
+\end{figure}
+
+\subsection{Demographic-Judgment Inconsistency (M4)}
+For each of the 10 demographic-triplet scenarios, the bias coefficient is the fraction of triplets in which at least one demographic variant disagrees with the others on the binary verdict. Lower is more demographically blind. The most striking result is DeepSeek-V3.1: its instant-mode coefficient of $0.30$ drops to $0.10$ when reasoning is enabled --- a three-fold reduction (Figure~\ref{fig:m4}). GPT-5.5 also improves, $0.20 \to 0.10$. Claude and Gemini hold steady at $0.10$ in both modes. The implication is that reasoning operates not as a uniform shift but as a corrective: it has its biggest effect where instant judgments are demographically uneven.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/fig4_demographic_bias.pdf}
+\caption{Demographic bias coefficient per (model, mode). Lower is more demographically blind.}
+\label{fig:m4}
+\end{figure}
+
+\subsection{Effect of Thinking on Moral Judgment (M7)}
+\label{sec:thinking-effect}
+For each (model family, scenario) pair we compare the instant-mode majority vote against the thinking-mode majority vote (with $N=3$ samples each). We report two effect sizes (Figure~\ref{fig:m7}): the \emph{verdict-flip rate} (fraction of scenarios where the binary judgment changed) and the \emph{framework-shift rate} (fraction where the self-labeled ethical framework changed). Qwen3.5-397B and DeepSeek-V3.1 show the strongest verdict effects (9\% and 8\% flips respectively); Claude and Gemini are most stable (1\% verdict flips); GPT-5.5 sits in the middle (6\% verdict flip, 11\% framework shift). The framework-shift rate is consistently higher than the verdict-flip rate across all five families, indicating that reasoning more often re-labels the rationale than changes the verdict.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/fig5_thinking_effect.pdf}
+\caption{The effect of reasoning, per model family. \textit{Verdict-flip rate} is the fraction of scenarios where the binary verdict changed between instant and thinking modes (single checkpoint). \textit{Framework-shift rate} is the fraction where the self-labeled ethical framework changed. \textbf{Cross-family ordering caveat:} the providers' thinking-mode reasoning-token spend ranges from 33 (Claude) to 2{,}639 (Qwen3.5) per call (Table~\ref{tab:reasoning-tokens}), so the cross-family ordering on this plot conflates ``reasoning enabled'' with ``how much reasoning the provider spent.'' Per-family within-checkpoint comparisons (each family's instant-vs-thinking pair) are not affected.}
+\label{fig:m7}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\input{tables/tab_thinking_effect}
+\caption{Effect of thinking on moral verdicts and self-labeled framework, per model family.}
+\label{tab:thinking-effect}
+\end{table}
+
+\section{Discussion}
+
+\subsection{Main Finding: Easy/Hard Stratification of Cross-Model Agreement}
+\label{sec:findings}
+
+\paragraph{(F1) Aggregate agreement on moral verdicts is high but masks an easy/hard split.}
+Aggregate Krippendorff's $\alpha$ on binary moral verdicts is $0.781$ instant vs.\ $0.789$ thinking (Table~\ref{tab:alpha}); the bootstrap CIs overlap and the difference is not significant at the 95\% level. The aggregate is reassuring but it is dominated by easy cases.
+
+We stratify scenarios \emph{post hoc} by partitioning on instant-mode agreement: 79 \emph{easy} scenarios where all five models give the same instant-mode majority verdict, 21 \emph{hard} scenarios where at least one disagrees. The partition is data-defined --- by construction the easy set has $\alpha = 1.00$ in instant mode (this is mechanical, not a finding) and the hard set has $\alpha < 1.00$. The interesting questions are (a) how disagreement-laden the hard set is, and (b) whether reasoning narrows the disagreement on the same scenarios.
+
+\textbf{(a) Disagreements on the hard set are substantial.} The mean per-scenario agreement count across the $\binom{5}{2}=10$ model pairs is $5.4 / 10$ in instant mode, indicating that disagreements are typically 3-2 or 4-1 splits rather than single-rater outliers. On easy-mode the count is $10 / 10$ by construction. Krippendorff's $\alpha$ on the hard set is $0.08$ ($95\%$ CI $[-0.06, 0.15]$) in instant mode --- consistent with chance-level agreement.
+
+\textbf{(b) Reasoning improves hard-case agreement, with caveats.} On the same 21 hard scenarios, the mean per-scenario agreement count rises to $6.7 / 10$ with reasoning enabled (Wilcoxon signed-rank test on the paired counts: $p = 0.026$; 10 of 21 scenarios improved, 4 worsened, 7 unchanged). The corresponding $\alpha$ on the hard set rises from $0.08$ to $0.23$, but a paired bootstrap on the difference $\alpha_{\text{thinking}} - \alpha_{\text{instant}}$ over the 21 hard scenarios gives a $95\%$ CI of $[-0.05, 0.36]$ that includes zero. The directional improvement (per-scenario test) is significant; the $\alpha$-magnitude improvement (the bootstrap test) is not, at this sample size. We therefore claim a directional but modest effect on hard-case agreement, not a precisely-quantified one. Larger-$N$ replications and a pre-registered hard-case set would strengthen the magnitude estimate.
+
+Substantively, the hard scenarios in our benchmark match the cases moral philosophy treats as contested: footbridge variants, harmless-taboo cases, ticking-bomb torture, and contemporary applied dilemmas (CRISPR germline editing, autonomous weapons, predictive policing) --- scenarios on which trained human raters also typically diverge. Specific scenario IDs in the hard set are listed in Appendix~B.
+
+\textbf{(c) Reasoning also \emph{introduces} disagreement on a small number of previously-easy scenarios.} On the 79 easy-set scenarios, easy-set $\alpha$ drops from $1.00$ (by construction) in instant mode to $0.95$ in thinking mode. Concretely, four scenarios that received unanimous instant-mode verdicts produced a single dissenting majority vote under thinking: TP04 (Gemini dissents), TP06 (DeepSeek dissents), TP11 (Qwen3.5 dissents), and MF17 (GPT-5.5 dissents). The reasoning gain on the hard set is therefore not free: on roughly 5\% of easy cases, reasoning manufactures a split where instant mode produced consensus. We do not have enough scenarios in either bucket to make a strong claim about the direction of the net effect, but readers should not interpret F1 as ``reasoning monotonically improves cross-model agreement.''
+
+\textbf{Multiple-comparisons caveat.} F1's per-scenario Wilcoxon ($p=0.026$) and the easy-set descriptives above are part of an analysis suite (M1--M7, plus the easy/hard split) that runs $\sim$20 implicit comparisons across model families and modes. We do not apply a family-wise correction. The Wilcoxon would not survive a Bonferroni or Benjamini-Hochberg correction across the M-suite, so we report the hard-case improvement as a directional observation rather than as a confirmatory statistical claim.
+
+\textbf{Repeated-measures caveat.} Three of the 21 hard-set scenarios (DS03a, DS03b, DS03c) are demographic variants of the same base case. Grouping by base scenario yields 19 independent clusters. We re-ran the headline analysis with cluster-level resampling: the clustered paired bootstrap on $\Delta\alpha$ gives mean $+0.150$, 95\% CI $[-0.047, +0.365]$ over $B=2{,}000$ resamples (compared to mean $+0.145$, CI $[-0.056, +0.360]$ at scenario level), and a cluster-level Wilcoxon on per-cluster mean agreement counts gives $p = 0.038$ (vs.\ $p = 0.026$ at scenario level, $n=19$ vs.\ $21$). The qualitative conclusion --- directional improvement, magnitude uncertain, would not survive a multiple-comparisons correction across the M-suite --- is unchanged.
+
+\subsection{Secondary Findings: Framework Shifts and Demographic Inconsistency}
+
+\paragraph{(F2) Suggestive direction-divergent framework shifts; not individually significant.}
+We did not detect a statistically significant framework shift in any individual model: per-provider deltas are 2--5 percentage points and individual bootstrap CIs include zero at $N=3$ samples per scenario. We therefore cannot conclude per-provider that reasoning shifts the model's framework. What we \emph{can} report is the direction of the (point-estimate) shifts across providers, which is heterogeneous: DeepSeek-V3.1 moves from $43\%$ utilitarian / $46\%$ deontological in instant mode to $48\% / 47\%$ thinking-mode (a plurality flip toward utilitarianism); GPT-5.5 \emph{rises on both axes}, with utilitarian going $30\%\!\to\!34\%$ ($+4.6$\,pp) and deontological going $41\%\!\to\!43\%$ ($+2.0$\,pp), while contractualist/other recede; Claude, Gemini, and Qwen3.5 are essentially stable. The two top frameworks therefore absorb mass from the long tail in GPT-5.5's case rather than trading places. We report this directional heterogeneity as a \emph{suggestive pattern} that warrants replication at higher $N$ before being treated as a per-provider claim.
+
+A more robust observation is that the framework-shift rate (Table~\ref{tab:thinking-effect}) is consistently higher than the verdict-flip rate across all five families, by factors of 1.7--10$\times$ (e.g.\ Claude: 1\% vs 9\%; Qwen3.5: 9\% vs 15\%; DeepSeek: 8\% vs 19\%; Gemini: 1\% vs 10\%). Reasoning therefore more often re-labels the rationale than changes the verdict --- which also explains why F1 finds no aggregate disagreement increase: models can change framework \emph{labels} without changing binary \emph{verdicts}.
+
+\textbf{The self-label does not always match the trace.} Because we capture each thinking-mode reasoning trace, we can ask whether \texttt{primary\_framework} matches the framework that the trace itself argues from. We use a simple keyword-counting heuristic: count occurrences of canonical cue words for each framework (e.g.\ ``utilitarian,'' ``categorical imperative,'' ``mere means''; full list in Appendix~C), and take the framework with the most hits as the trace-dominant framework. Traces with zero cue hits are dropped as indeterminate.
+
+The result (Table~\ref{tab:trace-concordance}) splits the five providers into two groups. DeepSeek-V3.1, Gemini 3 Flash, and Qwen3.5-397B agree with their own traces $\geq 90\%$ of the time, on essentially every call ($n \approx 296$--$298$). Claude Sonnet 4.6 agrees only $24\%$ ($95\%$ CI $[0.08, 0.40]$); GPT-5.5 only $58\%$ ($[0.48, 0.68]$).
+
+The Claude number deserves a methodological caveat. Claude's traces are short (mean 33 reasoning tokens; Table~\ref{tab:reasoning-tokens}) \emph{and} tend to paraphrase moral concepts (``respecting the person's autonomy'') instead of using the canonical-vocabulary markers our heuristic detects. As a result, only 25 of Claude's 286 long-enough traces trigger any cue at all, and the 0.24 concordance is computed on this lexically self-selected subset. We therefore read the Claude finding as ``self-label not \emph{corroborated} by canonical-vocabulary trace content'' rather than ``self-label \emph{contradicted} by trace content.'' For GPT-5.5 the cue-coverage problem is milder (91/200 traces trigger cues), and 0.58 concordance is a more direct mismatch.
+
+The practical takeaway: in F2, treat Claude and GPT-5.5 framework distributions as descriptions of self-reporting behavior; treat DeepSeek/Gemini/Qwen3.5 framework distributions as reasoning-corroborated. We release per-call cue counts (\texttt{m\_trace\_concordance\_per\_call.csv}) for readers who want to apply a different rule.
+
+\begin{table}[t]
+\centering
+\small
+\input{tables/tab_trace_concordance}
+\caption{Concordance between the self-labeled \texttt{primary\_framework} and the trace-dominant framework (lexical-cue heuristic; computed only on calls whose trace contains discriminative cues, hence the smaller $n$ for Claude and GPT-5.5). Claude and GPT-5.5 are the two families whose self-label is most decoupled from their own reasoning trace; this is partly a power problem (short traces) and partly substantive disagreement.}
+\label{tab:trace-concordance}
+\end{table}
+
+\paragraph{(F3) Reasoning substantially reduces demographic-judgment inconsistency.}
+The demographic-judgment-inconsistency coefficient (M4 --- the fraction of demographic triplets where at least one variant disagrees on the binary verdict) drops from instant to thinking mode for three model families: DeepSeek-V3.1 ($0.30 \to 0.10$, a three-fold reduction), GPT-5.5 ($0.20 \to 0.10$), and Qwen3.5-397B ($0.20 \to 0.10$). For Claude and Gemini, instant-mode inconsistency was already at the $0.10$ floor and reasoning did not move it further. \emph{Where a model's instant moral judgment is demographically uneven, reasoning consistently helps; where it is already even, reasoning maintains.} An important caveat: M4 measures \emph{inconsistency} (asymmetry across demographic variants), not directional bias --- it tells us models give different answers across demographic variants, but not whether the harsher answer goes to a marginalized or to a majority variant. We log per-triplet directional information in our data release (\texttt{m4b\_directional\_bias.csv}) for follow-up; characterizing direction reliably across heterogeneous demographic axes (race, gender, nationality, religion, SES, age) requires per-axis annotation we leave to future work.
+
+\subsection{Hypothesis Evaluation}
+\label{sec:hyp-eval}
+We set out five working hypotheses in \S\ref{sec:hypotheses}; Table~\ref{tab:hypotheses} summarizes the verdict on each:
+
+\begin{table}[t]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}c p{0.30\linewidth} l p{0.40\linewidth}@{}}
+\toprule
+\# & Hypothesis & Verdict & Evidence \\
+\midrule
+H1 & Different model families default to different ethical frameworks. & \textbf{Supported} & M1 (Fig.~\ref{fig:m1}): Gemini 59\% utilitarian; GPT-5.5 41\% deontological; DeepSeek roughly even. \\
+\addlinespace
+H2 & Surface-form variations produce non-trivial verdict flips. & \textbf{Rejected} & M3: paraphrase consistency 0.90--1.00 in every (model, mode) cell. \\
+\addlinespace
+H3 & Demographic variants produce different judgments. & \textbf{Partial} & M4: 0.20--0.30 inconsistency in instant mode for 3 of 5 models; floor for Claude/Gemini. \\
+\addlinespace
+H4 & Cross-model agreement collapses on hard cases. & \textbf{Tautological in part} & The $\alpha=1.00$ easy/$\alpha=0.08$ hard contrast is mechanical (the partition is defined by instant-mode agreement). The substantive findings are the \emph{size} of the hard-set disagreement (mean 5.4/10 pairwise) and the directional narrowing under reasoning (5.4 $\to$ 6.7; directional only --- would not survive a multiple-comparisons correction across the M-suite; see §\ref{sec:findings}). \\
+\addlinespace
+H5 & Thinking systematically changes moral judgments within a single model. & \textbf{Mixed} & M7: verdict-flip 1--9\%, framework-shift 9--19\%. Real but small for most; larger for DeepSeek and Qwen3.5. \\
+\bottomrule
+\end{tabular}
+\caption{Verdicts on the five working hypotheses given the data. \textit{Tautological in part} = the headline contrast is mechanical by construction; substantive findings are reported separately in §\ref{sec:findings}. \textit{Partial} = supported for some models, floored for others.}
+\label{tab:hypotheses}
+\end{table}
+
+The most surprising verdict is H2 (rejected). Frontier reasoning-trained LLMs are substantially \emph{more} robust to paraphrase than the prior literature on pre-reasoning models would have predicted --- a finding worth its own follow-up.
+
+\subsection{Implications for Deployment}
+\label{sec:deploy}
+For fairness-sensitive applications, enabling reasoning mode is a defensible default (F3): demographic-judgment inconsistency drops substantially in three of five models and never increases for any of them. For consistency across models, the picture is more cautious: instant-mode cross-model agreement is near-random on hard cases (F1), and reasoning improves but does not solve this. We do not recommend treating self-labeled framework (F2) as a reliable signal of which ethical framework a model is applying without independent validation against the reasoning content.
+
+\paragraph{Methodological caveat: cross-provider ``lightweight thinking''.}
+Each provider exposes reasoning controls differently and the precise meaning of ``lightweight thinking'' varies by provider; readers should consult each provider's published API documentation for what their respective settings (\texttt{thinking.budget\_tokens}, \texttt{reasoning.effort}, \texttt{thinking\_level}, \texttt{reasoning.enabled}) actually do. The settings used in this study are listed in Table~\ref{tab:models}; we adopted each provider's lightest non-zero reasoning configuration per their documentation. We captured reasoning traces for each thinking-mode call and release them alongside the structured outputs to enable trace-level follow-up analyses, but do not analyze trace content as part of the main study --- doing so requires per-provider treatment of how each surfaces (or redacts) reasoning content, which is outside the scope of the moral-reasoning question we set out to study here.
+
+\section{Limitations}
+\begin{itemize}[noitemsep,leftmargin=*]
+    \item \textbf{Self-labeled frameworks.} The \texttt{primary\_framework} field is what models report about themselves, not an external philosophical classification. Two models claiming ``utilitarian'' may apply the label to materially different reasoning. We release the per-call reasoning trace alongside each structured response so that follow-up work can validate the self-label against actual reasoning content; we do not perform that validation in the present paper.
+    \item \textbf{Benchmark size.} 100 scenarios, while balanced across five categories, is small compared to ETHICS ($\sim$130k) or Social-Chem-101 ($\sim$290k). We position this work as a \emph{controlled probe} of the reasoning-vs-instant axis, not a comprehensive moral benchmark. A follow-up paper expanding to 500+ scenarios with public-dataset human-label baselines is in progress.
+    \item \textbf{Sample count.} $N=3$ per configuration (3{,}000 total calls) was chosen as the smallest $N$ that supports a per-scenario majority vote; the marginal cost of larger $N$ is not the binding constraint (an $N=10$ replication would cost roughly $\$100$). Rather, $N=3$ proved sufficient because we observe modest within-cell stochastic variance in practice (binary verdict varies on $\leq 7$ of 100 scenarios per config; framework on $\leq 22$). A replication at $N \geq 10$ would tighten confidence intervals on small effects (notably the $\sim$2--5\,pp F2 framework shifts) and is recommended for any follow-up that aims to make per-provider F2 claims at conventional significance.
+    \item \textbf{English-only, Western-centric scenarios.} All 100 prompts are in English. Many are drawn from Western moral-philosophy literature (Kohlberg, Foot, Thomson, Singer, Haidt). Cross-lingual and cross-cultural extension is left to future work.
+    \item \textbf{Closed-source training-data confound.} Three of five models are closed-API; we cannot inspect their training data. Observed framework biases may reflect alignment data curation rather than reasoning-style differences per se.
+    \item \textbf{Training-data contamination of classical scenarios.} A substantial fraction of our scenarios --- particularly the trolley-problem variants and Moral-Foundations-Theory cases --- correspond to canonical examples from moral philosophy that have been written about in textbooks, blogs, and prior NLP papers. These materials are almost certainly present in the training data of all five models. The high agreement we observe on the easy scenarios ($\alpha=1.00$ in instant mode) may therefore partly reflect models having memorized the philosophical consensus answer rather than independently arriving at it through moral reasoning. The harder scenarios in our benchmark are the ones where the philosophical literature itself is contested, so memorization-of-consensus is less likely to drive convergence there --- which is consistent with our observation that hard-case agreement is near random in instant mode. We do not have a clean way to disentangle ``memorized canonical answer'' from ``moral-reasoning-grounded answer'' on the easy scenarios; readers should bear this in mind when interpreting F1's easy/hard contrast.
+\end{itemize}
+
+\section{Ethics and Broader Impact}
+This paper studies, but does not endorse, the moral judgments produced by frontier LLMs. Several risks deserve explicit acknowledgement. First, the scenarios involve sensitive content (trolley-style life-or-death dilemmas, demographic bias probes, contemporary applied dilemmas including pandemic triage and autonomous weapons); we view these as instruments for measuring model behavior, not normative recommendations. Second, our demographic-sensitivity probes use stylized variants (e.g., ``immigrant'' vs ``citizen''); the inferences supported are about \emph{whether models give different answers when demographic cues vary}, not about which answers would be ``correct.'' Third, our findings could be misread as endorsing one ethical framework over another --- they are not; we report what models do, not what is right. Fourth, releasing the benchmark and traces creates a small risk of training-data leakage if the data are scraped into future training sets; the benchmark is small enough that we do not consider this a substantial risk relative to the reproducibility benefit, but practitioners should not treat post-2026 model performance on these specific scenarios as out-of-sample evidence.
+
+\section{Conclusion}
+We presented a controlled, single-checkpoint comparison of moral judgment across five frontier reasoning-trained LLMs in instant and lightweight thinking modes. Three findings.
+
+\emph{(i) Main.} Aggregate cross-model agreement on binary moral verdicts is high in both modes and unchanged by reasoning. But this aggregate hides a sharp easy/hard split: on the 21 hard scenarios (footbridge variants, harmless taboos, contested contemporary dilemmas) instant-mode agreement is at chance level ($\alpha=0.08$) and reasoning improves it modestly ($\alpha=0.23$). The improvement is directional only --- the per-scenario Wilcoxon $p=0.026$ would not survive a multiple-comparisons correction across the M-suite, and the bootstrap CI on $\Delta\alpha$ includes zero. Reasoning also \emph{introduces} disagreement on roughly 5\% of previously-easy scenarios.
+
+\emph{(ii) Self-labeled framework shifts are small and suggestive.} Per-provider shifts are 2--5 percentage points and individually not significant at $N=3$; the cross-provider pattern is heterogeneous (DeepSeek toward utilitarianism; GPT-5.5 rises on both top frameworks; others stable). A more robust ancillary fact: framework-shift rates are 1.7--10$\times$ verdict-flip rates --- reasoning re-labels the rationale more often than it changes the verdict. A separate finding from comparing self-labels against reasoning traces: Claude and GPT-5.5 self-labels are not corroborated by canonical-vocabulary trace content, so their framework distributions should be read as self-reporting behavior; DeepSeek, Gemini, and Qwen3.5 self-labels match their traces.
+
+\emph{(iii) Demographic-judgment inconsistency drops with reasoning.} Three of five models improve (DeepSeek $0.30 \to 0.10$, GPT-5.5 $0.20 \to 0.10$, Qwen3.5 $0.20 \to 0.10$); none worsen.
+
+Effect sizes for (ii) and (iii) are modest and warrant replication at higher $N$. ``Lightweight thinking'' is not a comparable construct across providers' APIs: mean reasoning-token spend per call ranges from 33 (Claude) to 2{,}639 (Qwen3.5), roughly 80$\times$. Readers should consult each provider's documentation. We release the full benchmark, runner, analysis pipeline, and 2{,}963 raw responses (with reasoning traces) to enable replication and extension.
+
+\section*{Reproducibility Statement}
+All code, scenarios, raw API responses (including reasoning traces, where the provider exposes them), processed metric CSVs, and figures are released alongside this manuscript. The runner is resumable (idempotent against scenario, mode, and run-index), retries transient errors, and writes per-call records to JSONL files immediately upon completion. With the four required API keys (Anthropic, OpenAI, Google AI Studio, Together AI), the full 3{,}000-call experiment reproduces in approximately 60 minutes of wall-clock time on a single workstation at a cost of $\sim$\$30 in API charges. Bootstrap confidence intervals use $B=1000$--$2000$ resamples with a fixed random seed (\texttt{seed=42}).
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\appendix
+\section*{Appendix A: Prompt Template}
+\label{app:prompt}
+
+\begin{verbatim}
+You are participating in a moral philosophy research study. Please analyze the
+following scenario carefully and provide a structured response in valid JSON.
+
+SCENARIO: {description}
+
+QUESTION: {question}
+
+Please respond with a JSON object containing exactly these fields:
+{
+  "judgment": "<your decision or position>",
+  "judgment_binary": <1 if morally permissible/required/justified, 0 if not>,
+  "confidence": <integer 1-5>,
+  "primary_framework": "<utilitarian|deontological|virtue_ethics|care_ethics|
+                       contractualist|other>",
+  "reasoning": "<2-3 sentences>",
+  "key_principle": "<one sentence>"
+}
+
+Respond ONLY with the JSON object. No preamble.
+\end{verbatim}
+
+\input{tables/appendix_examples}
+
+\section*{Appendix C: Trace-Concordance Cue Dictionary and Procedure}
+\label{app:trace-cues}
+The trace-vs-self-label concordance reported in §\ref{sec:thinking-effect} (Table~\ref{tab:trace-concordance}) is computed by a deliberately simple lexical heuristic. We use the same fixed dictionary for all five providers; ``other'' is not in the dictionary because no canonical lexical marker discriminates it from the residual.
+
+\begin{description}[noitemsep,leftmargin=*]
+\item[\texttt{utilitarian}] \texttt{utilitarian}, \texttt{consequentialist}, \texttt{consequentialism}, \texttt{greatest good}, \texttt{minimize harm}, \texttt{maximize}, \texttt{net benefit}, \texttt{outcome}, \texttt{aggregate}, \texttt{overall good}, \texttt{more lives}.
+\item[\texttt{deontological}] \texttt{deontolog}, \texttt{kantian}, \texttt{categorical imperative}, \texttt{rights-based}, \texttt{mere means}, \texttt{intrinsically wrong}, \texttt{duty}, \texttt{dignity}, \texttt{use as a means}, \texttt{treat them as}, \texttt{absolute prohibition}, \texttt{regardless of consequences}.
+\item[\texttt{virtue\_ethics}] \texttt{virtue}, \texttt{character}, \texttt{what a virtuous}, \texttt{phron}, \texttt{courage}, \texttt{wisdom}.
+\item[\texttt{care\_ethics}] \texttt{care ethic}, \texttt{relationship}, \texttt{vulnerab}, \texttt{dependents}, \texttt{compassion}.
+\item[\texttt{contractualist}] \texttt{contractuali}, \texttt{social contract}, \texttt{rawls}, \texttt{veil of ignorance}, \texttt{principles all could}, \texttt{reasonable people would agree}.
+\end{description}
+
+\textbf{Procedure.} For each thinking-mode call whose reasoning trace is at least 50 characters long, we lowercase the trace and count substring occurrences of every cue. We treat the trace's \emph{dominant framework} as $\arg\max$ over framework-level cue totals (ties broken by dictionary iteration order). Traces with zero total cue hits across all five frameworks are marked \emph{indeterminate} and excluded from the concordance computation. The reported concordance is the fraction of the determinate subset on which the dominant framework matches the model's self-labeled \texttt{primary\_framework}; bootstrap CIs ($B=1000$) resample over calls within the determinate subset.
+
+\textbf{Limitations of the heuristic.} (i)~The cue list is canonical-philosophy vocabulary, so it under-counts traces that paraphrase moral concepts in plain language without using these markers --- this is the dominant reason Claude Sonnet 4.6 contributes only 25 of 286 thinking-mode traces (long-enough but cue-poor). (ii)~Cues are unweighted, so a trace that name-checks ``utilitarian'' once but reasons in deontological terms throughout will be classified as utilitarian. (iii)~Ties are broken arbitrarily. We have not validated the heuristic against a hand-coded sample. We use it as a directional signal, not a precise classifier; the released per-call \texttt{m\_trace\_concordance\_per\_call.csv} contains the full per-cue counts for any reader who wishes to apply a different rule or train a learned classifier.
+
+\end{document}

@@ -1,0 +1,11 @@
+config_key,n_biased_triplets,n_total,bias_coefficient,ci_lo,ci_hi
+claude_instant,1,10,0.1,0.0,0.3
+claude_light,1,10,0.1,0.0,0.3
+gpt55_instant,2,10,0.2,0.0,0.5
+gpt55_light,1,10,0.1,0.0,0.3
+gemini_instant,1,10,0.1,0.0,0.3
+gemini_light,1,10,0.1,0.0,0.3
+deepseek_instant,3,10,0.3,0.0,0.6
+deepseek_light,1,10,0.1,0.0,0.3
+qwen35_instant,2,10,0.2,0.0,0.5
+qwen35_light,1,10,0.1,0.0,0.3
