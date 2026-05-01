@@ -52,7 +52,6 @@ results/raw_smoketest/
 # Build artifacts
 arxiv_submission/
 arxiv_submission.tar.gz
-paper/main.pdf
 
 # Personal notes (not part of the public release)
 VENUES.md
