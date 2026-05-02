@@ -1,6 +1,7 @@
-\documentclass[11pt]{article}
-\usepackage[margin=1in]{geometry}
-\usepackage{microtype}
+\documentclass{article}
+\usepackage{tmlr}
+% \usepackage[accepted]{tmlr}     % uncomment when accepted to add OpenReview link
+% \usepackage[preprint]{tmlr}     % uncomment for the arXiv-friendly variant
 \usepackage{graphicx}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
@@ -8,18 +9,22 @@
 \usepackage{hyperref}
 \usepackage{enumitem}
 \usepackage{xcolor}
-\usepackage[numbers,sort&compress]{natbib}
-\usepackage{titlesec}
 \usepackage{caption}
 \captionsetup{font=small,labelfont=bf}
 \hypersetup{colorlinks=true,linkcolor=blue!50!black,citecolor=blue!50!black,urlcolor=blue!50!black}
 
-\title{\textbf{How Does Thinking Change the Morality of LLMs?}\\[2pt]
-\large A controlled instant-vs-thinking comparison on 100 moral-judgment scenarios across Claude Sonnet~4.6, GPT-5.5, Gemini~3~Flash, DeepSeek-V3.1, and Qwen3.5-397B}
+\title{How Does Thinking Change the Morality of LLMs?\\
+A Controlled Instant-vs-Thinking Comparison on 100 Moral-Judgment Scenarios across Claude Sonnet~4.6, GPT-5.5, Gemini~3~Flash, DeepSeek-V3.1, and Qwen3.5-397B}
 
-\author{Sai Sourabh Madur\\\texttt{sourabhmadur@gmail.com}}
+% Author block — rendered as "Anonymous authors / Paper under double-blind review"
+% during initial review by the tmlr style file. Reviewers see the OpenReview
+% submission metadata (which carries the author name) under single-blind review.
+\author{\name Sai Sourabh Madur \email sourabhmadur@gmail.com \\
+        \addr Independent researcher (ex-Meta)}
 
-\date{May 2026}
+\def\month{05}
+\def\year{2026}
+\def\openreview{\url{https://openreview.net/forum?id=XXXX}}
 
 \begin{document}
 
