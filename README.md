@@ -1,4 +1,4 @@
-# How Does Thinking Change the Morality of LLMs?
+# How Does Thinking Mode Change LLM Moral Judgments?
 
 A controlled study of reasoning effects on moral judgment in five frontier
 language models, using single-checkpoint instant-vs-thinking comparisons.
@@ -171,9 +171,9 @@ If you use this benchmark or pipeline, please cite:
 
 ```bibtex
 @article{madur2026thinking,
-  title  = {How Does Thinking Change the Morality of LLMs?
-            A Controlled Instant-vs-Thinking Comparison Across
-            Five Frontier Reasoning-Trained Language Models},
+  title  = {How Does Thinking Mode Change LLM Moral Judgments?
+            A Controlled Instant-vs-Thinking Comparison
+            Across Five Frontier Models},
   author = {Madur, Sai Sourabh},
   year   = {2026}
 }
