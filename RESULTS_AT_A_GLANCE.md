@@ -1,5 +1,7 @@
 # Results at a Glance — Final (post-review revision)
 
+> **Note:** `paper/main.pdf` / `paper/main.tex` is the authoritative write-up; this file is an internal summary. F4 below was corrected to match `results/processed/m_reasoning_tokens.csv` (Claude mean = 33 reasoning tokens/call, not the 1,024-token budget cap).
+
 *Full data: 2,963 successful calls. All 10 (model × mode) configurations populated. Bootstrap 95% CIs throughout.*
 
 ## Four headline findings
@@ -50,18 +52,18 @@ Self-labeled framework changes induced by reasoning:
 
 **Caveat (per SG-4):** M4 measures *inconsistency* (asymmetry across demographic variants), not *directional bias*. Per-triplet directional info is logged in `m4b_directional_bias.csv`; quantifying which way the bias goes is left to follow-up because keyword coding alone can't distinguish "harsher to marginalized" from "more lenient to marginalized" across diverse demographic axes.
 
-### F4 — Reasoning effort spans 31× across providers
+### F4 — Reasoning effort spans ~80× across providers
 
 Mean reasoning tokens at each provider's lightest non-zero setting (n=300 each):
 | Lab | Mean | Std |
 |---|---|---|
-| Claude Sonnet 4.6 | **1,024** (capped) | 0 |
+| Claude Sonnet 4.6 | **33** (budget cap 1,024) | 45 |
 | DeepSeek-V3.1 | 912 | 406 |
 | Gemini 3 Flash | 532 | 246 |
 | **GPT-5.5** | **84** (very low) | 63 |
 | **Qwen3.5-397B** | **2,639** (very high) | 783 |
 
-**Counter-example to the naive "more tokens → more change" hypothesis:** GPT-5.5 produces only 84 reasoning tokens but has a 6% verdict-flip rate (6× Claude's, despite Claude using 12× more tokens). Per-provider differences in *how* reasoning is shaped by post-training matter more than raw token count.
+**Counter-example to the naive "more tokens → more change" hypothesis:** GPT-5.5 produces only 84 reasoning tokens but has a 6% verdict-flip rate, while Gemini (532 tokens) flips 1%; Qwen3.5 uses 2,639 tokens and flips 9% (`m7_thinking_effect.csv`). Per-provider differences in *how* reasoning is shaped by post-training matter more than raw token count.
 
 **Critical caveat:** GPT-5.5 at `effort=low` produces *zero* reasoning tokens for our prompts (verified via `usage.output_tokens_details.reasoning_tokens`). We use `effort=medium` for OpenAI's thinking arm, which is more generous than the apparently-equivalent settings on the other providers.
 
