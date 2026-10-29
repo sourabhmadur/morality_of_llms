@@ -1,17 +1,37 @@
 # How Does Thinking Mode Change LLM Moral Judgments?
 
-A controlled study of reasoning effects on moral judgment in five frontier
-language models, using single-checkpoint instant-vs-thinking comparisons.
+**A controlled instant-vs-thinking comparison of moral judgment across five frontier reasoning-trained LLMs.**
+Same model weights, only the provider's reasoning toggle changes: 100 ethical scenarios × 5 models × 2 modes × 3 samples, yielding **2,963 successfully parsed responses** (out of 3,000 planned), all raw outputs committed.
 
-This repository contains the benchmark, experiment runner, analysis pipeline,
-raw model outputs, and the LaTeX source for the accompanying paper.
+**Paper:** [`paper/main.pdf`](paper/main.pdf) (TMLR-format manuscript, currently the anonymized review build; LaTeX source in [`paper/main.tex`](paper/main.tex)) · **Data:** [`results/raw/`](results/raw/) · **Metrics:** [`results/processed/`](results/processed/)
 
-## TL;DR
+## Why it matters
 
-We query five frontier reasoning-capable LLMs on 100 ethical scenarios in
-both **instant** and **lightweight thinking** modes. All five families use a
-*single-checkpoint* comparison (same weights, only the reasoning toggle
-changes), which removes capability confounds from the comparison.
+Every frontier provider now ships a "thinking mode", and these models are increasingly asked to make value-laden calls (moderation, triage, tutoring). This study asks whether flipping that switch changes *what the model judges to be right*, and whether "thinking" even means the same thing across providers. Short answer: it rarely flips verdicts, it nudges the ethical framework a model claims to use, it helps a little exactly where models disagree, and "lightweight thinking" varies by ~80× in token spend between providers.
+
+## Key findings
+
+All numbers below are reproduced offline by `python experiments/analyze_results.py` from the committed raw outputs; source file in brackets.
+
+| # | Finding | Numbers |
+|---|---|---|
+| 1 | **Aggregate agreement hides an easy/hard split.** Cross-model agreement on binary verdicts looks high and unchanged by thinking, but on the 21 scenarios where models disagree it is at chance level. | Krippendorff's α = **0.78** instant vs **0.79** thinking overall; **1.00 → 0.95** on 79 consensus scenarios; **0.08 → 0.23** on 21 model-disputed scenarios (95% CI for thinking: 0.01–0.45) [`m2b_easy_vs_hard.csv`] |
+| 2 | **Thinking narrows disagreement on hard cases, but only directionally.** | Mean pairwise agreement on disputed scenarios **5.4 → 6.7 / 10**; Wilcoxon p = 0.026, does not survive multiple-comparison correction; bootstrap CI on Δα = [−0.05, 0.36] [`paper/main.tex` §Findings] |
+| 3 | **Thinking changes the stated ethical framework more often than the verdict** — in all five models. | Verdict-flip rate **1–9%** vs framework-shift rate **9–19%** per model (e.g. DeepSeek-V3.1: 8% vs 19%) [`m7_thinking_effect.csv`] |
+| 4 | **Thinking reduces demographic-judgment inconsistency in 3 of 5 models and increases it in none.** | Inconsistent demographic triplets: DeepSeek **3/10 → 1/10**, GPT-5.5 2/10 → 1/10, Qwen3.5 2/10 → 1/10; Claude and Gemini stay at 1/10 [`m4_demographic_bias.csv`] |
+| 5 | **"Lightweight thinking" is not a comparable construct across providers.** | Mean reasoning tokens per call: Claude **33**, GPT-5.5 84, Gemini 532, DeepSeek 912, Qwen3.5 **2,639** (~80× spread) [`m_reasoning_tokens.csv`] |
+| 6 | **Models are robust to paraphrase.** | Paraphrase-pair consistency 0.90–1.00 for every model × mode [`m3_paraphrase_consistency.csv`] |
+
+Exploratory (see paper Appendix C before quoting): the self-labeled framework is corroborated by lexical cues in the reasoning trace for ≥90% of calls for DeepSeek, Gemini and Qwen3.5, 58% for GPT-5.5, and 24% for Claude (Claude traces mostly lack cues: 25/286) [`m_trace_concordance_summary.csv`].
+
+<p align="center">
+  <img src="docs/figures/agreement_easy_vs_hard.png" alt="Krippendorff's alpha on consensus vs model-disputed scenarios, instant vs thinking" width="48%">
+  <img src="docs/figures/thinking_effect_by_model.png" alt="Verdict-flip and framework-shift rates per model when thinking is enabled" width="48%">
+</p>
+
+## Setup
+
+All five families use a *single-checkpoint* comparison (same weights, only the reasoning parameter changes), which removes capability confounds from the comparison.
 
 | Lab | Model | Instant config | Thinking config |
 |---|---|---|---|
@@ -21,15 +41,29 @@ changes), which removes capability confounds from the comparison.
 | DeepSeek | `deepseek-ai/DeepSeek-V3.1` | `reasoning.enabled=False` | `reasoning.enabled=True` |
 | Alibaba | `Qwen/Qwen3.5-397B-A17B` | `reasoning.enabled=False` | `reasoning.enabled=True` |
 
-### Headline results
+The 100 scenario prompts span five categories: 15 trolley problems, 25 Moral Foundations items, 10 paraphrase pairs (20 prompts), 10 demographic-sensitivity triplets (30 prompts), and 10 contemporary dilemmas ([`experiments/scenarios/`](experiments/scenarios/)).
 
-- Aggregate cross-model agreement on binary verdicts is high in both modes (Krippendorff's α = 0.78 / 0.79) but masks an easy/hard split.
-- On 21 contested "hard" scenarios, instant-mode agreement is at chance level (α = 0.08); reasoning improves it modestly (α = 0.23) — directional only.
-- Reasoning reduces demographic-judgment inconsistency in 3 of 5 models; increases it for none.
-- Self-labeled ethical framework matches the reasoning trace ≥90% for DeepSeek/Gemini/Qwen3.5, but only 24% for Claude and 58% for GPT-5.5.
-- "Lightweight thinking" is *not* comparable across providers: per-call reasoning-token spend ranges from 33 (Claude) to 2,639 (Qwen3.5).
+## How to reproduce (offline, no API keys, no cost)
 
-## Quick start
+Every result and figure can be regenerated from the committed raw outputs without calling any model:
+
+```bash
+pip install -r requirements.txt
+
+# Recompute all metrics (results/processed/*.csv), paper figures (paper/figures/*.pdf)
+# and LaTeX tables (paper/tables/*.tex) from results/raw/*.jsonl
+python experiments/analyze_results.py
+
+# Regenerate the two README figures (docs/figures/*.png) from results/processed/
+python experiments/make_readme_figures.py
+
+# Rebuild the paper PDF (either toolchain works)
+cd paper && tectonic main.tex          # or: pdflatex main && bibtex main && pdflatex main && pdflatex main
+```
+
+To re-run the experiment itself against the live APIs (paid), see Quick start below.
+
+## Quick start (re-running the experiment; paid API calls)
 
 ```bash
 # 1. Install dependencies
@@ -72,14 +106,17 @@ morality_of_llms/
 │   │   └── together_client.py      # reasoning.enabled (canonical)
 │   ├── run_experiments.py          # Resumable runner with smart retries
 │   ├── analyze_results.py          # Computes 7 metrics + emits figures/tables
+│   ├── make_readme_figures.py      # PNG figures for this README (from results/processed/)
 │   ├── smoketest.py                # End-to-end pipeline test (1 scenario × 10 configs)
 │   └── peek.py                     # Inspect full structured responses for a few scenarios
 ├── results/
 │   ├── raw/                        # Per-config JSONL output (append-only)
 │   ├── processed/                  # Computed metrics as CSV
 │   └── smoketest/                  # Smoketest results
+├── docs/figures/                   # README figures (PNG)
 ├── paper/
 │   ├── main.tex                    # Manuscript source
+│   ├── main.pdf                    # Compiled manuscript
 │   ├── references.bib              # Bibliography
 │   ├── figures/                    # Auto-generated PDF figures
 │   └── tables/                     # Auto-generated LaTeX tables
@@ -175,7 +212,8 @@ If you use this benchmark or pipeline, please cite:
             A Controlled Instant-vs-Thinking Comparison
             Across Five Frontier Models},
   author = {Madur, Sai Sourabh},
-  year   = {2026}
+  year   = {2026},
+  note   = {Manuscript. Code and data: https://github.com/sourabhmadur/morality_of_llms}
 }
 ```
 
